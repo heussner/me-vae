@@ -30,9 +30,9 @@ class MultiEncodingVAE(pl.LightningModule):
         return self.model(input1, input2, **kwargs)
 
     def training_step(self, batch, batch_idx, optimizer_idx=0):
-        real_img1 = batch[0]
-        real_img2 = batch[1]
-        self.curr_device = real_img1.device
+        real_img = batch
+        print(real_img)
+        self.curr_device = real_img.device
 
         if not hasattr(self, "save_dir"):
             self.__setattr__(
@@ -42,7 +42,7 @@ class MultiEncodingVAE(pl.LightningModule):
             if not os.path.isdir(self.save_dir):
                 os.makedirs(self.save_dir)
 
-        results = self.forward(real_img1, real_img2)
+        results = self.forward(real_img[0], real_img[1])
         train_loss = self.model.loss_function(
             *results,
             M_N=batch.size(0) / self.n_samples,
