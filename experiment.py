@@ -3,7 +3,7 @@ from cv2 import normalize
 from matplotlib import pyplot as plt
 import torch
 from torch import optim
-from models.image_vae import MEVAE
+from models.me_vae import MEVAE
 import pytorch_lightning as pl
 from torchvision.utils import save_image, make_grid
 from torchvision.io import read_image
