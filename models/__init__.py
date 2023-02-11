@@ -1,3 +1,3 @@
-from .image_vae import *
+from .me_vae import *
 
-vae_models = {"image_vae": MEVAE}
+vae_models = {"me_vae": MEVAE}
