@@ -21,8 +21,10 @@ class SingleCellDataset(Dataset):
             data_path (Text): Path to data dir with folders containing augmented set
             transform (Any, optional): Optional data transofrmation. Defaults to None.
         """
+        #sample directories (assuming augmented crops are in different directories, and that there are only 2 inputs/augmentations)
         sample_dirs1 = os.listdir(data_path1)
         sample_dirs2 = os.listdir(data_path2)
+        #lists of images
         self.img_files1 = []
         self.img_files2 = []
         for d1,d2 in zip(sample_dirs1, sample_dirs2):
@@ -42,6 +44,7 @@ class SingleCellDataset(Dataset):
         Returns:
             torch.tensor: Data sample as tensor
         """
+        #load image, convert to tensor
         filepath1 = self.img_files1[idx]
         filepath2 = self.img_files2[idx]
         img1 = imread(filepath1)
@@ -66,6 +69,7 @@ class SingleCellDataset(Dataset):
         if self.eval:
             return filepath1, filepath2, tensor1, tensor2
         else:
+        #returns list of both tensors
             return [tensor1, tensor2]
 
 
@@ -142,5 +146,6 @@ def load_data(
         Dataset: Correspond PyTorch Dataset
     """
     dataset = SingleCellDataset(data_path1, data_path2, eval=eval, **kwargs["dataset"])
+    #single DataLoader
     loader = DataLoader(dataset, **kwargs["loader"])
     return dataset, loader
