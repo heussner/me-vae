@@ -49,6 +49,7 @@ class MEVAE(nn.Module):
         self.fc_mu = nn.Linear(hidden_dims[-1] * self.dsample, latent_dim)
         self.fc_var = nn.Linear(hidden_dims[-1] * self.dsample, latent_dim)
         
+        # added second encoder
         # Build Encoder 2
         modules = []
         for h_dim in hidden_dims:
@@ -106,7 +107,7 @@ class MEVAE(nn.Module):
             nn.Conv2d(hidden_dims[-1], out_channels=3, kernel_size=3, padding=1),
             nn.Sigmoid(),
         )
-        
+    
     def encode1(self, input: torch.Tensor) -> List[torch.Tensor]:
         """
         Encodes the input by passing through the encoder network
@@ -124,6 +125,7 @@ class MEVAE(nn.Module):
 
         return [mu, log_var]
     
+    #added second encode fn
     def encode2(self, input: torch.Tensor) -> List[torch.Tensor]:
         """
         Encodes the input by passing through the encoder network
@@ -168,17 +170,22 @@ class MEVAE(nn.Module):
         return eps * std + mu
 
     def forward(self, input1: torch.Tensor, input2: torch.Tensor, **kwargs) -> torch.Tensor:
+        #mu/var from both encoders
         mu1, log_var1 = self.encode1(input1)
         mu2, log_var2 = self.encode2(input2)
+        #reparameterize from separate latent spaces
         z1 = self.reparameterize(mu1, log_var1)
         z2 = self.reparameterize(mu2, log_var2)
+        #multiply z1,z1
         z = torch.mul(z1, z2)
+        #return decoded z, both inputs/mus/vars
         return [self.decode(z), input1, mu1, log_var1, input2, mu2, log_var2]
 
     def loss_function(self, *args, **kwargs) -> dict:
         """
         Computes the VAE loss function.
         """
+        #unpack output of forward fn
         recons = args[0]
         input1 = args[1]
         mu1 = args[2]
@@ -186,7 +193,8 @@ class MEVAE(nn.Module):
         input2 = args[4]
         mu2 = args[5]
         log_var2 = args[6]
-
+        
+        #reconstruction + KLD loss for both inputs/latents
         kld_weight = kwargs["M_N"]  # Account for the minibatch samples from the dataset
         if self.likelihood_dist == "gauss":
             recons_loss1 = F.mse_loss(recons, input1)
