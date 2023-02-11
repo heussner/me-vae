@@ -4,7 +4,7 @@ import ml_collections
 def get_config():
     cfg = ml_collections.ConfigDict()
 
-    cfg.model = "image_vae"
+    cfg.model = "me_vae"
     cfg.model_params = {
         "img_size": 128,
         "in_channels": 3,
