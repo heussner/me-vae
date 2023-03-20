@@ -48,14 +48,19 @@ def main(_):
         print("Instantiating new model.")
         model = model_class(**model_config.model_params)
 
-#    summary(
-#        model, 
-#        (
-#            model_config.model_params.in_channels, 
-#            model_config.model_params.img_size, 
-#            model_config.model_params.img_size
-#        )
-#    )
+    summary(
+        model, 
+        [(
+            model_config.model_params.in_channels, 
+            model_config.model_params.img_size, 
+            model_config.model_params.img_size
+        ),
+            (
+            model_config.model_params.in_channels, 
+            model_config.model_params.img_size, 
+            model_config.model_params.img_size
+        )]
+    )
 
     dataset, trainloader = load_data(config.datapath1, config.datapath2, **config.data_params)
     n_samples = len(dataset)
