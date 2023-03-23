@@ -5,7 +5,7 @@ from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 import torch, os
 from absl import app, flags
 from ml_collections.config_flags import config_flags
-from experiment import MultiEncodingVAE
+from experiment import MultiEncoderVAE
 import pickle
 from data import load_data
 from models import vae_models
@@ -70,7 +70,7 @@ def main(_):
     dataset, trainloader = load_data(config.datapath1, config.datapath2, config.datapath3, **config.data_params)
     n_samples = len(dataset)
 
-    experiment = MultiEncodingVAE(model, config.optim, n_samples, config.sample_step)
+    experiment = MultiEncoderVAE(model, config.optim, n_samples, config.sample_step)
 
     callbacks = []
     if config.early_stopping.do:
