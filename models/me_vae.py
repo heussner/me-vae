@@ -50,7 +50,6 @@ class MEVAE(nn.Module):
         self.fc_mu = nn.Linear(hidden_dims[-1] * self.dsample, latent_dim)
         self.fc_var = nn.Linear(hidden_dims[-1] * self.dsample, latent_dim)
         
-        # added second encoder
         # Build Encoder 2
         in_channels = self.in_channels
         modules = []
@@ -127,7 +126,6 @@ class MEVAE(nn.Module):
 
         return [mu, log_var]
     
-    #added second encode fn
     def encode2(self, input: torch.Tensor) -> List[torch.Tensor]:
         """
         Encodes the input by passing through the encoder network
@@ -172,32 +170,30 @@ class MEVAE(nn.Module):
         return eps * std + mu
 
     def forward(self, input1: torch.Tensor, input2: torch.Tensor, output: torch.Tensor, **kwargs) -> torch.Tensor:
-        #mu/var from both encoders
+        #encode inputs
         mu1, log_var1 = self.encode1(input1)
         mu2, log_var2 = self.encode2(input2)
-        #reparameterize from separate latent spaces
+        #reparameterize
         z1 = self.reparameterize(mu1, log_var1)
         z2 = self.reparameterize(mu2, log_var2)
         #multiply z1,z1
         z = torch.mul(z1, z2)
-        #return decoded z, both inputs/mus/vars
-        return [self.decode(z), input1, mu1, log_var1, input2, mu2, log_var2, output]
+        #decode
+        return [self.decode(z), output, mu1, log_var1, mu2, log_var2]
 
     def loss_function(self, *args, **kwargs) -> dict:
         """
         Computes the VAE loss function.
         """
-        #unpack output of forward fn
+        #unpack args
         recons = args[0]
-        input1 = args[1]
+        output = args[1]
         mu1 = args[2]
         log_var1 = args[3]
-        input2 = args[4]
-        mu2 = args[5]
-        log_var2 = args[6]
-        output = args[7]
+        mu2 = args[4]
+        log_var2 = args[5]
         
-        #reconstruction + KLD loss for both inputs/latents
+        #reconstruction for decoder + KLD loss for both encoders
         kld_weight = kwargs["M_N"]  # Account for the minibatch samples from the dataset
         if self.likelihood_dist == "gauss":
             recons_loss = F.mse_loss(recons, output)
@@ -215,9 +211,9 @@ class MEVAE(nn.Module):
         )
         
         kld_loss = kld_loss1 + kld_loss2
-        kld_scaled = kld_weight * kld_loss1 + kld_weight * kld_loss2
+        kld_scaled = kld_weight * kld_loss
         loss = recons_loss + kld_scaled
-        return {"loss": loss, "Reconstruction_Loss": recons_loss, "KLD": -kld_loss, "KLD_Scaled": -kld_scaled}
+        return {"loss": loss, "reconstruction_loss": recons_loss, "KLD": -kld_loss, "KLD_scaled": -kld_scaled}
     
     def sample(self, num_samples: int, current_device: int, **kwargs) -> torch.Tensor:
         """
