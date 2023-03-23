@@ -10,7 +10,7 @@ from torchvision.io import read_image
 from ml_collections import ConfigDict
 
 
-class MultiEncodingVAE(pl.LightningModule):
+class MultiEncoderVAE(pl.LightningModule):
     def __init__(
         self,
         model: MEVAE,
@@ -18,7 +18,7 @@ class MultiEncodingVAE(pl.LightningModule):
         n_samples: int,
         sample_step: int = 10,
     ) -> None:
-        super(MultiEncodingVAE, self).__init__()
+        super(MultiEncoderVAE, self).__init__()
         self.model = model
         self.optim = optim_config
         self.n_samples = n_samples
