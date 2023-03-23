@@ -54,14 +54,12 @@ class MultiEncoderVAE(pl.LightningModule):
 
         if batch_idx % self.sample_step == 0:
             recons = results[0]
-            inputs1 = results[1]
-            inputs2 = results[4]
+            output = results[1]
             save_path = self.save_dir + f"{self.step}.png"
-            for k in range(inputs1.size(1)): 
+            for k in range(output.size(1)): 
                 comp = torch.cat(
                     (
-                        inputs1[:64, k, 30:-30, 30:-30].unsqueeze(1),
-                        inputs2[:64, k, 30:-30, 30:-30].unsqueeze(1),
+                        output[:64, k, 30:-30, 30:-30].unsqueeze(1),
                         recons[:64, k, 30:-30, 30:-30].unsqueeze(1)
                     ), 
                     -1)
@@ -82,7 +80,7 @@ class MultiEncoderVAE(pl.LightningModule):
                     "Inputs-Reconstructions", grid[:1,:,:], self.step
                 )
 
-            msg = f"loss: {train_loss['loss']:.4f} -- rec: {train_loss['Reconstruction_Loss']:.4f} -- kld (scaled): {train_loss['KLD_Scaled']:.4f} -- kld: {train_loss['KLD']:.4f}"
+            msg = f"loss: {train_loss['loss']:.4f} -- rec: {train_loss['reconstruction_loss']:.4f} -- kld (scaled): {train_loss['KLD_scaled']:.4f} -- kld: {train_loss['KLD']:.4f}"
             print(msg)
 
         for k, v in train_loss.items():
