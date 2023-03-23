@@ -21,6 +21,7 @@ class MEVAE(nn.Module):
         self.latent_dim = latent_dim
         self.img_size = img_size
         self.likelihood_dist = likehood_dist
+        self.in_channels = in_channels
         
         if hidden_dims is None:
             hidden_dims = [32, 64, 128, 256, 512]
@@ -51,6 +52,7 @@ class MEVAE(nn.Module):
         
         # added second encoder
         # Build Encoder 2
+        in_channels = self.in_channels
         modules = []
         for h_dim in hidden_dims:
             modules.append(
@@ -104,7 +106,7 @@ class MEVAE(nn.Module):
             ),
             nn.BatchNorm2d(hidden_dims[-1]),
             nn.LeakyReLU(),
-            nn.Conv2d(hidden_dims[-1], out_channels=3, kernel_size=3, padding=1),
+            nn.Conv2d(hidden_dims[-1], out_channels=self.in_channels, kernel_size=3, padding=1),
             nn.Sigmoid(),
         )
     
@@ -134,7 +136,7 @@ class MEVAE(nn.Module):
         :return: (torch.Tensor) List of latent codes
         """
         result = self.encoder2(input)
-        result = self.flatten(result, start_dim=1)
+        result = torch.flatten(result, start_dim=1)
 
         # Split the result into mu and var components
         # of the latent Gaussian distribution
@@ -169,7 +171,7 @@ class MEVAE(nn.Module):
         eps = torch.randn_like(std)
         return eps * std + mu
 
-    def forward(self, input1: torch.Tensor, input2: torch.Tensor, **kwargs) -> torch.Tensor:
+    def forward(self, input1: torch.Tensor, input2: torch.Tensor, output: torch.Tensor, **kwargs) -> torch.Tensor:
         #mu/var from both encoders
         mu1, log_var1 = self.encode1(input1)
         mu2, log_var2 = self.encode2(input2)
@@ -179,7 +181,7 @@ class MEVAE(nn.Module):
         #multiply z1,z1
         z = torch.mul(z1, z2)
         #return decoded z, both inputs/mus/vars
-        return [self.decode(z), input1, mu1, log_var1, input2, mu2, log_var2]
+        return [self.decode(z), input1, mu1, log_var1, input2, mu2, log_var2, output]
 
     def loss_function(self, *args, **kwargs) -> dict:
         """
@@ -193,19 +195,16 @@ class MEVAE(nn.Module):
         input2 = args[4]
         mu2 = args[5]
         log_var2 = args[6]
+        output = args[7]
         
         #reconstruction + KLD loss for both inputs/latents
         kld_weight = kwargs["M_N"]  # Account for the minibatch samples from the dataset
         if self.likelihood_dist == "gauss":
-            recons_loss1 = F.mse_loss(recons, input1)
-            recons_loss2 = F.mse_loss(recons, input2)
+            recons_loss = F.mse_loss(recons, output)
         elif self.likelihood_dist == "bern":
-            recons_loss1 = F.binary_cross_entropy_with_logits(recons, input1)
-            recons_loss2 = F.binary_cross_entropy_with_logits(recons, input2)
+            recons_loss = F.binary_cross_entropy_with_logits(recons, output)
         else:
             raise ValueError("Undefined likelihood distribution.")
-        
-        recons_loss = recons_loss1 + recons_loss2
         
         kld_loss1 = torch.mean(
             -0.5 * torch.sum(1 + log_var1 - mu1 ** 2 - log_var1.exp(), dim=1), dim=0
@@ -216,11 +215,9 @@ class MEVAE(nn.Module):
         )
         
         kld_loss = kld_loss1 + kld_loss2
-        
-        loss1 = recons_loss1 + kld_weight * kld_loss1 
-        loss2 = recons_loss2 + kld_weight * kld_loss2
-        loss = loss1 + loss2
-        return {"loss": loss, "Reconstruction_Loss": recons_loss, "KLD": -kld_loss}
+        kld_scaled = kld_weight * kld_loss1 + kld_weight * kld_loss2
+        loss = recons_loss + kld_scaled
+        return {"loss": loss, "Reconstruction_Loss": recons_loss, "KLD": -kld_loss, "KLD_Scaled": -kld_scaled}
     
     def sample(self, num_samples: int, current_device: int, **kwargs) -> torch.Tensor:
         """

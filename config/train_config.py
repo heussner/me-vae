@@ -12,19 +12,20 @@ def get_config():
 
     cfg.deterministic = False
     cfg.max_epochs = 50
-    cfg.batch_size = 64
+    cfg.batch_size = 10
     cfg.manual_seed = 100
     cfg.device = "cuda" if torch.cuda.is_available() else "cpu"
     cfg.accelerator = "gpu" if cfg.device == "cuda" else "cpu"
-    # cfg.num_gpus = torch.cuda.device_count() if cfg.device == "cuda" else 0
-    cfg.num_gpus = 1 if cfg.device == "cuda" else 0
+    cfg.num_gpus = torch.cuda.device_count() if cfg.device == "cuda" else 0
+    #cfg.num_gpus = 4 if cfg.device == "cuda" else 0
     cfg.accel_strategy = "ddp" if cfg.num_gpus >= 2 else None
     cfg.detect_anomaly = False
     cfg.sample_step = 10  # every sample_step batches model logs
 
     # data
-    cfg.datapath1 = "/home/groups/ChangLab/heussner/crc-data/pbmc-crops/cell_train1/cell_train"
-    cfg.datapath2 = "/home/groups/ChangLab/heussner/crc-data/pbmc-crops/cell_train1/cell_train"
+    cfg.datapath1 = "/home/groups/ChangLab/heussner/me-vae-pytorch/MEVAE_training/MEVAEInputs1/train/"
+    cfg.datapath2 = "/home/groups/ChangLab/heussner/me-vae-pytorch/MEVAE_training/MEVAEInputs2/train/"
+    cfg.datapath3 = "/home/groups/ChangLab/heussner/me-vae-pytorch/MEVAE_training/MEVAEOutputs/train/"
     cfg.img_size = (128, 128)
     cfg.data_params = {
         "dataset": {"transform": Resize(cfg.img_size),},
@@ -32,7 +33,7 @@ def get_config():
             "batch_size": cfg.batch_size,
             "shuffle": False if cfg.deterministic else True,
             "pin_memory": False,
-            "num_workers": os.cpu_count(),
+            "num_workers": 0,
         },
     }
 
@@ -47,12 +48,12 @@ def get_config():
     # logging details
     cfg.logging = ml_collections.ConfigDict()
     cfg.logging.deterministic = True
-    cfg.logging.name = "5channel_pbmc_capan2sw480_mar29_2022"
+    cfg.logging.name = "mevae_training"
     cfg.logging.debug = True
     cfg.logging.save_dir = (
-        "/home/groups/ChangLab/heussner/single-cell-vae/single_cell_vae/logs"
+        "/home/groups/ChangLab/heussner/me-vae-pytorch/logs"
     )
-    cfg.logging.fix_version = False
+    cfg.logging.fix_version = True
 
     # early stopping
     cfg.early_stopping = ml_collections.ConfigDict()

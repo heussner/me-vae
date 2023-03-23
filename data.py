@@ -14,22 +14,25 @@ class SingleCellDataset(Dataset):
     """Custom PyTorch dataset for loading and iterating over images from disk"""
 
     def __init__(
-        self, data_path1: Text, data_path2: Text, transform: Any = ToTensor(), eval: bool = False
+        self, data_path1: Text, data_path2: Text, data_path3: Text, transform: Any = ToTensor(), eval: bool = False
     ):
         """
         Args:
-            data_path (Text): Path to data dir with folders containing augmented set
+            data_path (Text): Path to data dir with folders containing augmented set/unaugmented set
             transform (Any, optional): Optional data transofrmation. Defaults to None.
         """
         #sample directories (assuming augmented crops are in different directories, and that there are only 2 inputs/augmentations)
-        sample_dirs1 = os.listdir(data_path1)
-        sample_dirs2 = os.listdir(data_path2)
+        input_dirs1 = os.listdir(data_path1)
+        input_dirs2 = os.listdir(data_path2)
+        output_dirs = os.listdir(data_path3)
         #lists of images
         self.img_files1 = []
         self.img_files2 = []
-        for d1,d2 in zip(sample_dirs1, sample_dirs2):
-            self.img_files1 += glob(os.path.join(data_path1, d1, "*.tiff"))
-            self.img_files2 += glob(os.path.join(data_path2, d2, "*.tiff"))
+        self.img_files3 = []
+        for d1, d2, d3 in zip(input_dirs1, input_dirs2, output_dirs):
+            self.img_files1.append(os.path.join(data_path1, d1))
+            self.img_files2.append(os.path.join(data_path2, d2))
+            self.img_files3.append(os.path.join(data_path3, d3))
         self.transform = transform
         self.eval = eval
 
@@ -47,8 +50,16 @@ class SingleCellDataset(Dataset):
         #load image, convert to tensor
         filepath1 = self.img_files1[idx]
         filepath2 = self.img_files2[idx]
+        filepath3 = self.img_files3[idx]
         img1 = imread(filepath1)
         img2 = imread(filepath2)
+        img3 = imread(filepath3)
+        
+        #for single-channel images
+        if len(img1.shape) == 2:
+            img1 = np.expand_dims(img1,2)
+            img2 = np.expand_dims(img2,2)
+            img3 = np.expand_dims(img3,2)
 
         if img1.dtype == "uint16":
             img1 = img_as_ubyte(img1)
@@ -61,16 +72,23 @@ class SingleCellDataset(Dataset):
         tensor2 = torch.from_numpy(img2)
         tensor2 = tensor2.permute(2, 0, 1).float()
         tensor2 /= 255
+        
+        if img3.dtype == "uint16":
+            img3 = img_as_ubyte(img3)
+        tensor3 = torch.from_numpy(img3)
+        tensor3 = tensor3.permute(2, 0, 1).float()
+        tensor3 /= 255
 
         if self.transform:
             tensor1 = self.transform(tensor1)
             tensor2 = self.transform(tensor2)
+            tensor3 = self.transform(tensor3)
 
         if self.eval:
             return filepath1, filepath2, tensor1, tensor2
         else:
         #returns list of both tensors
-            return [tensor1, tensor2]
+            return tensor1, tensor2, tensor3
 
 
 class SetBackgroundIntensity(object):
@@ -131,11 +149,11 @@ class MinMaxNormalize(object):
 
 
 def load_data(
-    data_path1: Text, data_path2: Text, eval: bool = False, **kwargs
+    data_path1: Text, data_path2: Text, data_path3: Text, eval: bool = False, **kwargs
 ) -> Tuple[Dataset, DataLoader]:
     """Construct PyTorch Dataloader
     Args:
-        data_path (Text): Path to directory of image data
+        data_paths (Text): Path to directory of image data
         **transform (Compose): Dataset transformation
         **batch_size (int): Dataloader batch size
         **shuffle (int): Shuffle dataloader or not
@@ -145,7 +163,7 @@ def load_data(
         DataLoader: PyTorch Dataloader
         Dataset: Correspond PyTorch Dataset
     """
-    dataset = SingleCellDataset(data_path1, data_path2, eval=eval, **kwargs["dataset"])
+    dataset = SingleCellDataset(data_path1, data_path2, data_path3, eval=eval, **kwargs["dataset"])
     #single DataLoader
     loader = DataLoader(dataset, **kwargs["loader"])
     return dataset, loader

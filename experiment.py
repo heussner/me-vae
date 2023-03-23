@@ -26,13 +26,12 @@ class MultiEncodingVAE(pl.LightningModule):
         self.step = 0
         self.colors = ["Blues", "Greens", "Reds", "Purples", "Oranges"]
 
-    def forward(self, input1: torch.Tensor, input2: torch.Tensor, **kwargs) -> torch.Tensor:
-        return self.model(input1, input2, **kwargs)
+    def forward(self, input1: torch.Tensor, input2: torch.Tensor, output: torch.Tensor, **kwargs) -> torch.Tensor:
+        return self.model(input1, input2, output, **kwargs)
 
     def training_step(self, batch, batch_idx, optimizer_idx=0):
-        real_img = batch
-        print(real_img)
-        self.curr_device = real_img.device
+        input1, input2, output = batch
+        self.curr_device = input1.device
 
         if not hasattr(self, "save_dir"):
             self.__setattr__(
@@ -42,10 +41,10 @@ class MultiEncodingVAE(pl.LightningModule):
             if not os.path.isdir(self.save_dir):
                 os.makedirs(self.save_dir)
 
-        results = self.forward(real_img[0], real_img[1])
+        results = self.forward(input1, input2, output)
         train_loss = self.model.loss_function(
             *results,
-            M_N=batch.size(0) / self.n_samples,
+            M_N=batch[0].size(0) / self.n_samples,
             optimizer_idx=optimizer_idx,
             batch_idx=batch_idx,
         )
@@ -58,7 +57,7 @@ class MultiEncodingVAE(pl.LightningModule):
             inputs1 = results[1]
             inputs2 = results[4]
             save_path = self.save_dir + f"{self.step}.png"
-            for k in range(inputs.size(1)): 
+            for k in range(inputs1.size(1)): 
                 comp = torch.cat(
                     (
                         inputs1[:64, k, 30:-30, 30:-30].unsqueeze(1),

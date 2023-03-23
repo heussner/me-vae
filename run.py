@@ -59,10 +59,15 @@ def main(_):
             model_config.model_params.in_channels, 
             model_config.model_params.img_size, 
             model_config.model_params.img_size
+        ),
+            (
+            model_config.model_params.in_channels, 
+            model_config.model_params.img_size, 
+            model_config.model_params.img_size
         )]
     )
 
-    dataset, trainloader = load_data(config.datapath1, config.datapath2, **config.data_params)
+    dataset, trainloader = load_data(config.datapath1, config.datapath2, config.datapath3, **config.data_params)
     n_samples = len(dataset)
 
     experiment = MultiEncodingVAE(model, config.optim, n_samples, config.sample_step)
