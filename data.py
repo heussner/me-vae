@@ -47,7 +47,7 @@ class SingleCellDataset(Dataset):
         Returns:
             torch.tensor: Data sample as tensor
         """
-        #load image, convert to tensor
+        #load images
         filepath1 = self.img_files1[idx]
         filepath2 = self.img_files2[idx]
         filepath3 = self.img_files3[idx]
@@ -60,7 +60,8 @@ class SingleCellDataset(Dataset):
             img1 = np.expand_dims(img1,2)
             img2 = np.expand_dims(img2,2)
             img3 = np.expand_dims(img3,2)
-
+        
+        #convert to tensors
         if img1.dtype == "uint16":
             img1 = img_as_ubyte(img1)
         tensor1 = torch.from_numpy(img1)
@@ -153,7 +154,8 @@ def load_data(
 ) -> Tuple[Dataset, DataLoader]:
     """Construct PyTorch Dataloader
     Args:
-        data_paths (Text): Path to directory of image data
+        data_path1/2 (Text): Path to directory of transformed image data
+        data_path3 (Text): Path to directory of transformed output image data
         **transform (Compose): Dataset transformation
         **batch_size (int): Dataloader batch size
         **shuffle (int): Shuffle dataloader or not
@@ -164,6 +166,5 @@ def load_data(
         Dataset: Correspond PyTorch Dataset
     """
     dataset = SingleCellDataset(data_path1, data_path2, data_path3, eval=eval, **kwargs["dataset"])
-    #single DataLoader
     loader = DataLoader(dataset, **kwargs["loader"])
     return dataset, loader
