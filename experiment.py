@@ -33,14 +33,6 @@ class MultiEncoderVAE(pl.LightningModule):
         input1, input2, output = batch
         self.curr_device = input1.device
 
-        if not hasattr(self, "save_dir"):
-            self.__setattr__(
-                "save_dir",
-                f"{self.logger.save_dir}/{self.logger.name}/version_{self.logger.version}/imgs/",
-            )
-            if not os.path.isdir(self.save_dir):
-                os.makedirs(self.save_dir)
-
         results = self.forward(input1, input2, output)
         train_loss = self.model.loss_function(
             *results,
@@ -50,17 +42,17 @@ class MultiEncoderVAE(pl.LightningModule):
         )
 
         for k, v in train_loss.items():
-            self.logger.experiment.add_scalar(k, v, self.step)
+            self.log(k, v)
 
         if batch_idx % self.sample_step == 0:
             recons = results[0]
             output = results[1]
-            save_path = self.save_dir + f"{self.step}.png"
+            #save_path = self.save_dir + f"{self.step}.png"
             for k in range(output.size(1)): 
                 comp = torch.cat(
                     (
-                        output[:64, k, 30:-30, 30:-30].unsqueeze(1),
-                        recons[:64, k, 30:-30, 30:-30].unsqueeze(1)
+                        output[:64, k, :, :].unsqueeze(1),
+                        recons[:64, k, :, :].unsqueeze(1)
                     ), 
                     -1)
                 grid = make_grid(comp, normalize=True)
@@ -68,17 +60,8 @@ class MultiEncoderVAE(pl.LightningModule):
                     (grid[0, :, :] == grid[1, :, :]).all().item() and 
                     (grid[0, :, :] == grid[2, :, :]).all().item()
                 )
-                cmap = plt.cm.get_cmap(self.colors[k]).copy()
-                cmap.set_bad(color="black")
-                plt.imsave(
-                    os.path.join(self.save_dir, 
-                    f"step_{self.step}_c{k}.png"), 
-                    grid[0,:,:].detach().cpu().numpy(), 
-                    cmap=cmap
-                )
-                self.logger.experiment.add_image(
-                    "Inputs-Reconstructions", grid[:1,:,:], self.step
-                )
+                self.logger.log_image(
+                    "Inputs-Reconstructions", [grid[0,:,:].detach().cpu().numpy()])
 
             msg = f"loss: {train_loss['loss']:.4f} -- rec: {train_loss['reconstruction_loss']:.4f} -- kld (scaled): {train_loss['KLD_scaled']:.4f} -- kld: {train_loss['KLD']:.4f}"
             print(msg)
@@ -89,7 +72,7 @@ class MultiEncoderVAE(pl.LightningModule):
 
         self.step += 1
 
-        self.log_dict(train_loss)
+        #self.log_dict(train_loss)
 
         return train_loss
 

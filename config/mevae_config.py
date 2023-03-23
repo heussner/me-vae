@@ -8,7 +8,7 @@ def get_config():
     cfg.model_params = {
         "img_size": 128,
         "in_channels": 1,
-        "latent_dim": 64,
+        "latent_dim": 128,
         "hidden_dims": [32, 64, 128, 256, 512],
         "n_downsample": 3,
         "inter_dim": 512,

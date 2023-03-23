@@ -47,9 +47,9 @@ class MEVAE(nn.Module):
         self.encoder1 = nn.Sequential(*modules)
         self.dsample = self.img_size // (2 ** len(hidden_dims))
         self.dsample **= 2
-        self.fc_mu = nn.Linear(hidden_dims[-1] * self.dsample, latent_dim)
-        self.fc_var = nn.Linear(hidden_dims[-1] * self.dsample, latent_dim)
-        
+        self.fc_mu1 = nn.Linear(hidden_dims[-1] * self.dsample, latent_dim)
+        self.fc_var1 = nn.Linear(hidden_dims[-1] * self.dsample, latent_dim)
+
         # Build Encoder 2
         in_channels = self.in_channels
         modules = []
@@ -70,6 +70,8 @@ class MEVAE(nn.Module):
             in_channels = h_dim
         
         self.encoder2 = nn.Sequential(*modules)
+        self.fc_mu2 = nn.Linear(hidden_dims[-1] * self.dsample, latent_dim)
+        self.fc_var2 = nn.Linear(hidden_dims[-1] * self.dsample, latent_dim)
         
         #Build Decoder
         modules = []
@@ -121,8 +123,8 @@ class MEVAE(nn.Module):
 
         # Split the result into mu and var components
         # of the latent Gaussian distribution
-        mu = self.fc_mu(result)
-        log_var = self.fc_var(result)
+        mu = self.fc_mu1(result)
+        log_var = self.fc_var1(result)
 
         return [mu, log_var]
     
@@ -138,8 +140,8 @@ class MEVAE(nn.Module):
 
         # Split the result into mu and var components
         # of the latent Gaussian distribution
-        mu = self.fc_mu(result)
-        log_var = self.fc_var(result)
+        mu = self.fc_mu2(result)
+        log_var = self.fc_var2(result)
 
         return [mu, log_var]
     

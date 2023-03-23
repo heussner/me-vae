@@ -1,6 +1,7 @@
 from logging import log
+from datetime import datetime
 from pytorch_lightning import Trainer, seed_everything
-from pytorch_lightning.loggers import TensorBoardLogger
+from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 import torch, os
 from absl import app, flags
@@ -27,16 +28,9 @@ def main(_):
         torch.set_deterministic(True)
         torch.backends.cudnn.benchmark = False
         os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":16:8"
-
-    v = 0 if config.logging.fix_version else None
-    logger = TensorBoardLogger(
-        save_dir=config.logging.save_dir, name=config.logging.name, version=v, **{"flush_secs": 5},
-    )
-
-    logger.log_hyperparams({})
-    log_dir = f"{logger.save_dir}/{logger.name}/version_{logger.version}/"
-    with open(os.path.join(log_dir, "hparams.pkl"), "wb") as f:
-        pickle.dump({"main": config, "model": model_config}, f)
+    
+    now = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+    wandb_logger = WandbLogger(name='run_'+now, project=config.logging.project, log_model=config.logging.log_model)
 
     model_class = vae_models[model_config.model]
     if config.load_checkpoint:
@@ -76,18 +70,9 @@ def main(_):
     if config.early_stopping.do:
         early_stopping = EarlyStopping(**config.early_stopping_params)
         callbacks.append(early_stopping)
-    if config.auto_checkpoint:
-        checkpoint = ModelCheckpoint(
-            dirpath=os.path.join(log_dir, config.checkpoint_dir),
-            monitor=config.checkpoint_monitor,
-            save_last=True,
-            mode=config.checkpoint_mode,
-            every_n_train_steps=50,
-        )
-        callbacks.append(checkpoint)
 
     trainer = Trainer(
-        logger=logger,
+        logger=wandb_logger,
         accelerator=config.accelerator,
         strategy=config.accel_strategy,
         callbacks=callbacks,

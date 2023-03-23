@@ -11,8 +11,8 @@ def get_config():
     cfg = ml_collections.ConfigDict()
 
     cfg.deterministic = False
-    cfg.max_epochs = 50
-    cfg.batch_size = 10
+    cfg.max_epochs = 300
+    cfg.batch_size = 64
     cfg.manual_seed = 100
     cfg.device = "cuda" if torch.cuda.is_available() else "cpu"
     cfg.accelerator = "gpu" if cfg.device == "cuda" else "cpu"
@@ -48,11 +48,9 @@ def get_config():
     # logging details
     cfg.logging = ml_collections.ConfigDict()
     cfg.logging.deterministic = True
-    cfg.logging.name = "mevae_training"
+    cfg.logging.project = "mevae_training"
+    cfg.logging.log_model = True
     cfg.logging.debug = True
-    cfg.logging.save_dir = (
-        "/home/groups/ChangLab/heussner/me-vae-pytorch/logs"
-    )
     cfg.logging.fix_version = True
 
     # early stopping
@@ -68,10 +66,6 @@ def get_config():
     }
 
     # auto checkpointing
-    cfg.auto_checkpoint = True
-    cfg.checkpoint_dir = "checkpoints"
-    cfg.checkpoint_monitor = "loss"
-    cfg.checkpoint_mode = "min"
     cfg.load_checkpoint = False
     cfg.model_path = None
 
