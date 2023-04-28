@@ -11,23 +11,28 @@ class MEVAE(nn.Module):
         self,
         in_channels: int,
         latent_dim: int,
+        inter_dim: int,
         hidden_dims: List = None,
         img_size: int = 128,
-        likehood_dist: str = "gauss",
+        dsample: int = -1,
+        likehood_dist: str = "bern",
         **kwargs
     ) -> None:
         
         super(MEVAE, self).__init__()
         self.latent_dim = latent_dim
+        self.inter_dim = inter_dim
         self.img_size = img_size
         self.likelihood_dist = likehood_dist
         self.in_channels = in_channels
+        self.dsample = dsample
         
         if hidden_dims is None:
             hidden_dims = [32, 64, 128, 256, 512]
+        self.last_hidden = hidden_dims[-1]
         
-        # Build Encoder 1
         modules = []
+        # Build Encoder 1
         for h_dim in hidden_dims:
             modules.append(
                 nn.Sequential(
@@ -38,17 +43,20 @@ class MEVAE(nn.Module):
                         stride=2,
                         padding=1,
                     ),
-                    nn.BatchNorm2d(h_dim),
+                    # nn.BatchNorm2d(h_dim),
                     nn.ReLU(),
                 )
             )
             in_channels = h_dim
-        
+
+        modules.append(nn.Flatten(start_dim=1),)
         self.encoder1 = nn.Sequential(*modules)
-        self.dsample = self.img_size // (2 ** len(hidden_dims))
-        self.dsample **= 2
-        self.fc_mu1 = nn.Linear(hidden_dims[-1] * self.dsample, latent_dim)
-        self.fc_var1 = nn.Linear(hidden_dims[-1] * self.dsample, latent_dim)
+        self.dsample = img_size // (2**len(hidden_dims))
+        self.dsample = 2 ** self.dsample
+        self.inter1 = nn.Linear(hidden_dims[-1]*self.dsample, inter_dim)
+
+        self.fc_mu1 = nn.Linear(inter_dim, latent_dim)
+        self.fc_var1 = nn.Linear(inter_dim, latent_dim)
 
         # Build Encoder 2
         in_channels = self.in_channels
@@ -63,51 +71,49 @@ class MEVAE(nn.Module):
                         stride=2,
                         padding=1,
                     ),
-                    nn.BatchNorm2d(h_dim),
+                    # nn.BatchNorm2d(h_dim),
                     nn.ReLU(),
                 )
             )
             in_channels = h_dim
         
+        modules.append(nn.Flatten(start_dim=1),)
         self.encoder2 = nn.Sequential(*modules)
-        self.fc_mu2 = nn.Linear(hidden_dims[-1] * self.dsample, latent_dim)
-        self.fc_var2 = nn.Linear(hidden_dims[-1] * self.dsample, latent_dim)
+        self.inter2 = nn.Linear(hidden_dims[-1]*self.dsample, inter_dim)
+
+        self.fc_mu2 = nn.Linear(inter_dim, latent_dim)
+        self.fc_var2 = nn.Linear(inter_dim, latent_dim)
         
         #Build Decoder
         modules = []
-        self.decoder_input = nn.Linear(latent_dim, hidden_dims[-1] * self.dsample)
-        hidden_dims.reverse()
 
-        for i in range(len(hidden_dims) - 1):
+        self.decoder_input = nn.Linear(latent_dim, hidden_dims[-1]*16)
+
+        hidden_dims.reverse()
+        in_channels = hidden_dims[0]
+        for h_dim in hidden_dims:
             modules.append(
                 nn.Sequential(
                     nn.ConvTranspose2d(
-                        hidden_dims[i],
-                        hidden_dims[i + 1],
-                        kernel_size=3,
+                        in_channels,
+                        out_channels=h_dim,
                         stride=2,
+                        kernel_size=3,
                         padding=1,
                         output_padding=1,
                     ),
-                    nn.BatchNorm2d(hidden_dims[i + 1]),
-                    nn.LeakyReLU(),
+                    # nn.BatchNorm2d(hidden_dims[-1]),
+                    nn.ReLU(),
                 )
             )
+            in_channels = h_dim
 
         self.decoder = nn.Sequential(*modules)
 
         self.final_layer = nn.Sequential(
             nn.ConvTranspose2d(
-                hidden_dims[-1],
-                hidden_dims[-1],
-                kernel_size=3,
-                stride=2,
-                padding=1,
-                output_padding=1,
+                hidden_dims[-1], out_channels=self.in_channels, kernel_size=3, padding=1
             ),
-            nn.BatchNorm2d(hidden_dims[-1]),
-            nn.LeakyReLU(),
-            nn.Conv2d(hidden_dims[-1], out_channels=self.in_channels, kernel_size=3, padding=1),
             nn.Sigmoid(),
         )
     
@@ -119,7 +125,7 @@ class MEVAE(nn.Module):
         :return: (torch.Tensor) List of latent codes
         """
         result = self.encoder1(input)
-        result = torch.flatten(result, start_dim=1)
+        result = self.inter1(result)
 
         # Split the result into mu and var components
         # of the latent Gaussian distribution
@@ -136,7 +142,7 @@ class MEVAE(nn.Module):
         :return: (torch.Tensor) List of latent codes
         """
         result = self.encoder2(input)
-        result = torch.flatten(result, start_dim=1)
+        result = self.inter2(result)
 
         # Split the result into mu and var components
         # of the latent Gaussian distribution
@@ -154,7 +160,7 @@ class MEVAE(nn.Module):
         """
         result = self.decoder_input(z)
         shape = int(sqrt(self.dsample))
-        result = result.view(-1, 512, shape, shape)
+        result = result.view(-1, self.last_hidden, shape, shape)
         result = self.decoder(result)
         result = self.final_layer(result)
         return result
@@ -196,26 +202,31 @@ class MEVAE(nn.Module):
         log_var2 = args[5]
         
         #reconstruction for decoder + KLD loss for both encoders
-        kld_weight = kwargs["M_N"]  # Account for the minibatch samples from the dataset
+        kld_weight = kwargs["M_N"]# Account for the minibatch samples from the dataset
+        kld_weight = 1
         if self.likelihood_dist == "gauss":
             recons_loss = F.mse_loss(recons, output)
         elif self.likelihood_dist == "bern":
-            recons_loss = F.binary_cross_entropy_with_logits(recons, output)
+            assert recons.isfinite().all()
+            assert (recons <= 1).all()
+            assert (recons >= 0).all()
+            assert output.isfinite().all()
+            assert (output <= 1).all()
+            assert (output >= 0).all()
+
+            recons_loss = F.binary_cross_entropy(recons, output)
+            recons_loss *= (self.img_size ** 2)
         else:
             raise ValueError("Undefined likelihood distribution.")
         
-        kld_loss1 = torch.mean(
-            -0.5 * torch.sum(1 + log_var1 - mu1 ** 2 - log_var1.exp(), dim=1), dim=0
-        )
+        kld_loss1 = torch.mean(-0.5 * torch.sum(1 + log_var1 - mu1 ** 2 - torch.exp(log_var1), dim=1), dim=0)
         
-        kld_loss2 = torch.mean(
-            -0.5 * torch.sum(1 + log_var2 - mu2 ** 2 - log_var2.exp(), dim=1), dim=0
-        )
+        kld_loss2 = torch.mean(-0.5 * torch.sum(1 + log_var2 - mu2 ** 2 - torch.exp(log_var2), dim=1), dim=0)
         
-        kld_loss = kld_loss1 + kld_loss2
+        kld_loss = (kld_loss1 + kld_loss2)/2 #averaging kld loss
         kld_scaled = kld_weight * kld_loss
         loss = recons_loss + kld_scaled
-        return {"loss": loss, "reconstruction_loss": recons_loss, "KLD": -kld_loss, "KLD_scaled": -kld_scaled}
+        return {"loss": loss, "reconstruction_loss": recons_loss, "KLD": kld_loss, "KLD_scaled": kld_scaled}
     
     def sample(self, num_samples: int, current_device: int, **kwargs) -> torch.Tensor:
         """
