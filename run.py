@@ -1,7 +1,7 @@
 from logging import log
 from datetime import datetime
 from pytorch_lightning import Trainer, seed_everything
-from pytorch_lightning.loggers import WandbLogger
+from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 import torch, os
 from absl import app, flags
@@ -11,6 +11,7 @@ import pickle
 from data import load_data
 from models import vae_models
 from torchsummary import summary
+import wandb
 
 
 FLAGS = flags.FLAGS
@@ -21,16 +22,23 @@ config_flags.DEFINE_config_file("model_config")
 def main(_):
     config = FLAGS.train_config
     model_config = FLAGS.model_config
-
-    # https://pytorch.org/docs/stable/notes/randomness.html
+    os.environ["CUDA_VISIBLE_DEVICES"] = "3"
+    wandb.init(project='me-vae',sync_tensorboard=True)
     if config.deterministic:
         seed_everything(config.manual_seed, workers=True)
         torch.set_deterministic(True)
         torch.backends.cudnn.benchmark = False
         os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":16:8"
     
-    now = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-    wandb_logger = WandbLogger(name='run_'+now, project=config.logging.project, log_model=config.logging.log_model)
+    v = 0 if config.logging.fix_version else None
+    logger = TensorBoardLogger(
+        save_dir=config.logging.save_dir, name=config.logging.name, version=v, **{"flush_secs": 5},
+    )
+
+    logger.log_hyperparams({})
+    log_dir = f"{logger.save_dir}/{logger.name}/version_{logger.version}/"
+    with open(os.path.join(log_dir, "hparams.pkl"), "wb") as f:
+        pickle.dump({"main": config, "model": model_config}, f)
 
     model_class = vae_models[model_config.model]
     if config.load_checkpoint:
@@ -72,7 +80,7 @@ def main(_):
         callbacks.append(early_stopping)
 
     trainer = Trainer(
-        logger=wandb_logger,
+        logger=logger,
         accelerator=config.accelerator,
         strategy=config.accel_strategy,
         callbacks=callbacks,
@@ -84,7 +92,7 @@ def main(_):
     )
 
     trainer.fit(model=experiment, train_dataloaders=trainloader)
-
+    wandb.finish()
 
 if __name__ == "__main__":
     app.run(main)
